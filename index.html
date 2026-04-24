@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CSM Map — Carte Clients</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #161b22;
+  --surface2: #21262d;
+  --surface3: #2d333b;
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --border3: rgba(255,255,255,0.2);
+  --text: #e6edf3;
+  --text2: #7d8590;
+  --text3: #484f58;
+  --accent: #4493f8;
+  --accent-bg: rgba(68,147,248,0.15);
+  --success: #3fb950;
+  --warning: #d29922;
+  --danger: #f85149;
+  --sidebar-w: 308px;
+  --header-h: 52px;
+  --r: 8px;
+  --r-sm: 5px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);height:100vh;display:flex;flex-direction:column;overflow:hidden;font-size:14px}
+
+/* ── HEADER ── */
+header{height:var(--header-h);background:var(--surface);border-bottom:1px solid var(--border2);display:flex;align-items:center;gap:14px;padding:0 18px;flex-shrink:0;z-index:500}
+.logo{display:flex;align-items:center;gap:9px}
+.logo-pin{width:26px;height:26px;background:var(--accent);border-radius:7px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.logo-pin svg{width:14px;height:14px;fill:white}
+.logo-name{font-size:14px;font-weight:600;letter-spacing:-.3px}
+.logo-tag{font-size:12px;color:var(--text2);margin-left:3px}
+.hd-sep{width:1px;height:20px;background:var(--border2)}
+.hd-sync{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--text2)}
+.sync-dot{width:6px;height:6px;border-radius:50%;background:var(--success)}
+.sync-dot.loading{background:var(--warning);animation:blink .8s infinite}
+.sync-dot.error{background:var(--danger)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+.hd-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+.btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:var(--r-sm);font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;border:1px solid var(--border2);background:transparent;color:var(--text2);transition:all .13s;white-space:nowrap}
+.btn:hover{background:var(--surface2);color:var(--text);border-color:var(--border3)}
+.btn-blue{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-blue:hover{background:#2f7de0;border-color:#2f7de0;color:#fff}
+.btn svg{width:13px;height:13px;flex-shrink:0}
+
+/* ── LAYOUT ── */
+.app-body{display:flex;flex:1;overflow:hidden}
+
+/* ── SIDEBAR ── */
+#sidebar{width:var(--sidebar-w);background:var(--surface);border-right:1px solid var(--border2);display:flex;flex-direction:column;flex-shrink:0;overflow:hidden}
+.sb-block{padding:13px 14px;border-bottom:1px solid var(--border)}
+.sb-label{font-size:10px;font-weight:600;letter-spacing:.7px;text-transform:uppercase;color:var(--text3);margin-bottom:9px;display:flex;align-items:center;justify-content:space-between}
+.sb-label-action{font-size:11px;letter-spacing:0;text-transform:none;font-weight:500;color:var(--text2);cursor:pointer;padding:2px 6px;border-radius:4px;border:1px solid var(--border2);background:transparent}
+.sb-label-action:hover{background:var(--surface2);color:var(--text)}
+
+/* Search */
+.search-wrap{position:relative}
+.search-wrap svg{position:absolute;left:9px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:var(--text3);pointer-events:none}
+.search-wrap input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r-sm);padding:7px 10px 7px 29px;font-family:inherit;font-size:13px;color:var(--text);outline:none;transition:border-color .13s}
+.search-wrap input::placeholder{color:var(--text3)}
+.search-wrap input:focus{border-color:var(--accent)}
+
+/* Stats */
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px}
+.stat-box{background:var(--surface2);border-radius:var(--r-sm);padding:9px 11px;border:1px solid var(--border)}
+.stat-val{font-size:19px;font-weight:600;color:var(--text);font-family:'DM Mono',monospace;line-height:1}
+.stat-lbl{font-size:11px;color:var(--text2);margin-top:3px}
+
+/* CSM list */
+.csm-list{display:flex;flex-direction:column;gap:3px;max-height:190px;overflow-y:auto}
+.csm-row{display:flex;align-items:center;gap:8px;padding:5px 7px;border-radius:var(--r-sm);cursor:pointer;transition:background .1s;user-select:none}
+.csm-row:hover{background:var(--surface2)}
+.csm-row.off .csm-n,.csm-row.off .csm-c{opacity:.35}
+.csm-color{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.csm-n{font-size:12px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.csm-c{font-size:11px;color:var(--text2);font-family:'DM Mono',monospace}
+.csm-eye{width:14px;height:14px;color:var(--text3);flex-shrink:0;opacity:0;transition:opacity .1s}
+.csm-row:hover .csm-eye{opacity:1}
+
+/* Route builder */
+.mode-tabs{display:flex;gap:5px;margin-bottom:10px}
+.mode-tab{flex:1;padding:5px 8px;font-size:12px;font-weight:500;border-radius:var(--r-sm);border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;font-family:inherit;transition:all .13s;text-align:center}
+.mode-tab.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.route-stops-list{display:flex;flex-direction:column;gap:3px;max-height:150px;overflow-y:auto;margin-bottom:9px}
+.stop-row{display:flex;align-items:center;gap:7px;background:var(--surface2);border-radius:var(--r-sm);padding:5px 9px;border:1px solid var(--border)}
+.stop-idx{width:17px;height:17px;border-radius:50%;background:var(--accent);color:#fff;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;font-family:'DM Mono',monospace}
+.stop-name{flex:1;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stop-rm{background:none;border:none;color:var(--text3);cursor:pointer;font-size:15px;padding:0 2px;line-height:1;transition:color .1s}
+.stop-rm:hover{color:var(--danger)}
+.route-empty{font-size:12px;color:var(--text3);text-align:center;padding:18px 12px;line-height:1.7}
+.route-btns{display:flex;gap:6px}
+
+/* Client list */
+.clients-hd{padding:9px 14px 7px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.clients-hd-label{font-size:11px;font-weight:600;color:var(--text2)}
+#client-list{flex:1;overflow-y:auto;padding:5px 6px}
+.cl-row{display:flex;align-items:flex-start;gap:9px;padding:7px 9px;border-radius:var(--r-sm);cursor:pointer;transition:background .1s;margin-bottom:1px}
+.cl-row:hover{background:var(--surface2)}
+.cl-dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;margin-top:5px}
+.cl-info{flex:1;min-width:0}
+.cl-name{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cl-sub{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+.cl-add{background:none;border:none;color:var(--text3);cursor:pointer;font-size:16px;padding:0 1px;opacity:0;transition:opacity .1s;flex-shrink:0;line-height:1}
+.cl-row:hover .cl-add{opacity:1}
+.cl-add:hover{color:var(--accent)}
+
+/* ── MAP ── */
+#map-wrap{flex:1;position:relative}
+#map{width:100%;height:100%}
+
+/* Route info bar */
+#route-bar{position:absolute;bottom:18px;left:18px;right:18px;z-index:400;background:var(--surface);border:1px solid var(--border3);border-radius:var(--r);padding:13px 16px;display:none;flex-direction:column;gap:8px;box-shadow:0 8px 30px rgba(0,0,0,.5)}
+#route-bar.vis{display:flex}
+.rb-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.rb-stat{display:flex;align-items:center;gap:5px;font-size:13px}
+.rb-stat strong{font-weight:600;color:var(--text)}
+.rb-sep{color:var(--text3)}
+.rb-right{margin-left:auto;display:flex;gap:7px}
+.rb-steps{display:flex;align-items:center;gap:0;overflow-x:auto;padding-top:2px}
+.rb-step{display:flex;align-items:center;flex-shrink:0}
+.rb-step-dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600;color:#fff;flex-shrink:0;font-family:'DM Mono',monospace}
+.rb-step-name{font-size:11px;margin-left:5px;white-space:nowrap;max-width:110px;overflow:hidden;text-overflow:ellipsis;color:var(--text2)}
+.rb-arrow{color:var(--text3);margin:0 6px;font-size:13px}
+
+/* Leaflet popup */
+.leaflet-popup-content-wrapper{background:var(--surface)!important;border:1px solid var(--border3)!important;border-radius:var(--r)!important;box-shadow:0 10px 40px rgba(0,0,0,.6)!important;color:var(--text)!important}
+.leaflet-popup-tip{background:var(--surface)!important}
+.leaflet-popup-content{margin:0!important;padding:0!important;font-family:'DM Sans',sans-serif!important}
+.popup-inner{padding:14px 16px;min-width:220px;max-width:280px}
+.pop-name{font-size:14px;font-weight:600;margin-bottom:8px;line-height:1.3}
+.pop-badge{display:inline-flex;align-items:center;gap:5px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:500;margin-bottom:10px}
+.pop-rows{display:flex;flex-direction:column;gap:5px;margin-bottom:11px}
+.pop-row{display:flex;align-items:flex-start;gap:8px;font-size:12px}
+.pop-row-icon{width:14px;height:14px;flex-shrink:0;margin-top:1px;color:var(--text3)}
+.pop-row-val{color:var(--text2);line-height:1.4}
+.pop-row-val strong{color:var(--text);font-weight:500}
+.pop-actions{display:flex;gap:6px;padding-top:10px;border-top:1px solid var(--border)}
+.pop-btn{flex:1;padding:6px 10px;border-radius:var(--r-sm);font-size:12px;font-family:inherit;font-weight:500;cursor:pointer;border:none;transition:all .13s;text-align:center}
+.pop-btn-hs{background:var(--accent-bg);color:var(--accent)}
+.pop-btn-hs:hover{background:var(--accent);color:#fff}
+.pop-btn-route{background:var(--surface2);color:var(--text);border:1px solid var(--border2)}
+.pop-btn-route:hover{background:var(--surface3)}
+
+/* Loading overlay */
+#loading{position:fixed;inset:0;background:var(--bg);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:9999;gap:14px}
+.ld-spinner{width:32px;height:32px;border:2px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.ld-text{font-size:13px;color:var(--text2)}
+.ld-prog{font-size:12px;color:var(--text3);font-family:'DM Mono',monospace}
+
+/* Config modal */
+#cfg-modal{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9000;display:none;align-items:center;justify-content:center}
+#cfg-modal.open{display:flex}
+.cfg-box{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:24px;width:440px;max-width:92vw}
+.cfg-title{font-size:15px;font-weight:600;margin-bottom:3px}
+.cfg-sub{font-size:12px;color:var(--text2);margin-bottom:18px;line-height:1.6}
+.cfg-group{margin-bottom:13px}
+.cfg-label{font-size:12px;color:var(--text2);margin-bottom:5px;display:block}
+.cfg-input{width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r-sm);padding:8px 11px;font-family:'DM Mono',monospace;font-size:12px;color:var(--text);outline:none;transition:border-color .13s}
+.cfg-input:focus{border-color:var(--accent)}
+.cfg-hint{font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5}
+.cfg-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* Toast */
+#toast{position:fixed;bottom:22px;right:22px;z-index:9999;background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:10px 15px;font-size:13px;opacity:0;transform:translateY(6px);transition:all .2s;pointer-events:none;box-shadow:0 6px 20px rgba(0,0,0,.4)}
+#toast.show{opacity:1;transform:translateY(0)}
+
+/* Scrollbars */
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+
+/* Leaflet overrides */
+.leaflet-control-zoom{border:1px solid var(--border2)!important;background:var(--surface)!important;border-radius:var(--r-sm)!important;overflow:hidden}
+.leaflet-control-zoom a{color:var(--text)!important;background:var(--surface)!important;border-bottom:1px solid var(--border)!important;width:28px!important;height:28px!important;line-height:28px!important}
+.leaflet-control-zoom a:hover{background:var(--surface2)!important}
+.leaflet-control-attribution{background:rgba(13,17,23,.85)!important;color:var(--text3)!important;font-size:10px!important}
+.leaflet-control-attribution a{color:var(--text2)!important}
+</style>
+</head>
+<body>
+
+<!-- Loading -->
+<div id="loading">
+  <div class="ld-spinner"></div>
+  <div class="ld-text" id="ld-text">Connexion à HubSpot…</div>
+  <div class="ld-prog" id="ld-prog"></div>
+</div>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Config Modal -->
+<div id="cfg-modal">
+  <div class="cfg-box">
+    <div class="cfg-title">Configuration HubSpot</div>
+    <div class="cfg-sub">Entrez votre token HubSpot (Private App) pour charger vos clients en temps réel.<br>La clé est stockée uniquement dans votre navigateur.</div>
+    <div class="cfg-group">
+      <label class="cfg-label">Token HubSpot (Private App)</label>
+      <input class="cfg-input" type="password" id="cfg-token" placeholder="pat-eu1-xxxxxxxx-xxxx-…"/>
+      <div class="cfg-hint">HubSpot → Paramètres → Intégrations → Applications privées<br>Scopes requis : crm.objects.companies.read · crm.owners.read</div>
+    </div>
+    <div class="cfg-actions">
+      <button class="btn" onclick="useDemoData()">Données démo</button>
+      <button class="btn btn-blue" onclick="saveConfig()">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+        Connecter
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- Header -->
+<header>
+  <div class="logo">
+    <div class="logo-pin">
+      <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+    </div>
+    <span class="logo-name">CSM Map</span>
+    <span class="logo-tag">— Clients actifs</span>
+  </div>
+  <div class="hd-sep"></div>
+  <div class="hd-sync">
+    <div class="sync-dot" id="sync-dot"></div>
+    <span id="sync-label">Chargement…</span>
+  </div>
+  <div class="hd-right">
+    <button class="btn" onclick="openCfg()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+      Config
+    </button>
+    <button class="btn" onclick="refreshAll()">
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M17.65 6.35C16.2 4.9 14.21 4 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+      Sync
+    </button>
+  </div>
+</header>
+
+<!-- Body -->
+<div class="app-body">
+  <!-- Sidebar -->
+  <div id="sidebar">
+
+    <!-- Search -->
+    <div class="sb-block">
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" id="search-inp" placeholder="Rechercher un client…" oninput="filterClients()">
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="sb-block">
+      <div class="sb-label">Vue d'ensemble</div>
+      <div class="stats-grid">
+        <div class="stat-box"><div class="stat-val" id="st-total">—</div><div class="stat-lbl">Clients actifs</div></div>
+        <div class="stat-box"><div class="stat-val" id="st-csms">—</div><div class="stat-lbl">CSMs</div></div>
+        <div class="stat-box"><div class="stat-val" id="st-vis">—</div><div class="stat-lbl">Affichés</div></div>
+        <div class="stat-box"><div class="stat-val" id="st-route">0</div><div class="stat-lbl">En tournée</div></div>
+      </div>
+    </div>
+
+    <!-- CSM Filter -->
+    <div class="sb-block">
+      <div class="sb-label">
+        CSMs
+        <button class="sb-label-action" onclick="toggleAllCsms()">Tout afficher</button>
+      </div>
+      <div class="csm-list" id="csm-list"></div>
+    </div>
+
+    <!-- Route planner -->
+    <div class="sb-block">
+      <div class="sb-label">Tournée</div>
+      <div class="mode-tabs">
+        <button class="mode-tab on" id="tab-sel" onclick="setMode('select')">Sélection manuelle</button>
+        <button class="mode-tab" id="tab-csm" onclick="setMode('csm')">Par CSM</button>
+      </div>
+      <div id="csm-route-sel" style="display:none;margin-bottom:9px">
+        <select id="csm-route-pick" style="width:100%;background:var(--surface2);border:1px solid var(--border2);border-radius:var(--r-sm);padding:7px 10px;font-family:inherit;font-size:12px;color:var(--text);outline:none">
+          <option value="">— Choisir un CSM —</option>
+        </select>
+        <button class="btn btn-blue" style="width:100%;margin-top:6px;justify-content:center;font-size:12px" onclick="loadCsmRoute()">Charger les clients</button>
+      </div>
+      <div class="route-stops-list" id="stops-list">
+        <div class="route-empty">Cliquez sur un client sur la carte<br>pour l'ajouter à la tournée</div>
+      </div>
+      <div class="route-btns">
+        <button class="btn" style="flex:1;justify-content:center;font-size:12px" onclick="clearRoute()">Effacer</button>
+        <button class="btn btn-blue" style="flex:1;justify-content:center;font-size:12px" id="btn-calc" onclick="calculateRoute()" disabled>
+          <svg viewBox="0 0 24 24" fill="currentColor" width="12" height="12"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg>
+          Calculer
+        </button>
+      </div>
+    </div>
+
+    <!-- Client list -->
+    <div class="clients-hd">
+      <span class="clients-hd-label">Clients (<span id="cl-count">0</span>)</span>
+      <span style="font-size:11px;color:var(--text3)" id="cl-geocoded"></span>
+    </div>
+    <div id="client-list"></div>
+  </div>
+
+  <!-- Map -->
+  <div id="map-wrap">
+    <div id="map"></div>
+    <!-- Route bar -->
+    <div id="route-bar">
+      <div class="rb-top">
+        <div class="rb-stat">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="var(--text2)"><path d="M13.49 5.48c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2zm-3.6 13.9l1-4.4 2.1 2v6h2v-7.5l-2.1-2 .6-3c1.3 1.5 3.3 2.5 5.5 2.5v-2c-1.9 0-3.5-1-4.3-2.4l-1-1.6c-.4-.6-1-1-1.7-1-.3 0-.5.1-.8.1l-5.2 2.2v4.7h2v-3.4l1.8-.7-1.6 8.1-4.9-1-.4 2 7 1.4z"/></svg>
+          <strong id="rb-dist">—</strong> <span class="rb-sep">·</span>
+          <strong id="rb-dur">—</strong> <span class="rb-sep">·</span>
+          <span id="rb-stops">0 arrêts</span>
+        </div>
+        <div class="rb-right">
+          <button class="btn" style="font-size:11px" onclick="openInGoogleMaps()">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="11" height="11"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+            Ouvrir Maps
+          </button>
+          <button class="btn" style="font-size:11px;color:var(--danger);border-color:rgba(248,81,73,.3)" onclick="closeRouteBar()">✕ Fermer</button>
+        </div>
+      </div>
+      <div class="rb-steps" id="rb-steps"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  STATE
+// ═══════════════════════════════════════════════
+let HS_TOKEN = 'server-side';
+let allClients = [];   // geocoded clients with lat/lng
+let owners = {};       // ownerId -> {name, color}
+let csmVisible = {};   // ownerId -> bool
+let routeStops = [];   // array of client objects
+let markers = {};      // clientId -> leaflet marker
+let routeLayer = null;
+let map;
+let routeMode = 'select';
+let searchQ = '';
+
+// 12 distinct colors for CSMs
+const CSM_COLORS = [
+  '#4493f8','#3fb950','#e3b341','#f85149','#bc8cff',
+  '#79c0ff','#56d364','#ff7b72','#d2a8ff','#ffa657',
+  '#39d353','#58a6ff'
+];
+
+// ═══════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════
+window.addEventListener('load', () => {
+  initMap();
+  loadData();
+});
+
+function initMap() {
+  map = L.map('map', {
+    center: [46.8, 2.3],
+    zoom: 6,
+    zoomControl: true
+  });
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap contributors © CARTO',
+    maxZoom: 19
+  }).addTo(map);
+}
+
+// ═══════════════════════════════════════════════
+//  CONFIG
+// ═══════════════════════════════════════════════
+function openCfg() {
+  document.getElementById('cfg-modal').classList.add('open');
+  if (HS_TOKEN) document.getElementById('cfg-token').value = HS_TOKEN;
+}
+function closeCfg() {
+  document.getElementById('cfg-modal').classList.remove('open');
+}
+function saveConfig() {
+  const t = document.getElementById('cfg-token').value.trim();
+  if (!t) { showToast('Entrez un token HubSpot'); return; }
+  HS_TOKEN = t;
+  closeCfg();
+  showLoading('Connexion à HubSpot…');
+  loadData();
+}
+
+// ═══════════════════════════════════════════════
+//  DATA LOADING
+// ═══════════════════════════════════════════════
+async function loadData() {
+  showLoading('Chargement des clients…');
+  setSyncState('loading', 'Chargement…');
+  try {
+    // 1. Load owners
+    setLoadingText('Récupération des CSMs…');
+    await loadOwners();
+
+    // 2. Load companies (customers only)
+    setLoadingText('Chargement des clients actifs…');
+    const companies = await loadAllCustomers();
+
+    setLoadingText(`Géocodage de ${companies.length} adresses…`);
+    const geocoded = await geocodeAll(companies);
+
+    allClients = geocoded;
+    renderAll();
+    setSyncState('ok', `${allClients.length} clients · ${new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}`);
+    hideLoading();
+  } catch(e) {
+    console.error(e);
+    setSyncState('error', 'Erreur de connexion');
+    hideLoading();
+    showToast('Erreur : ' + e.message);
+  }
+}
+
+async function loadOwners() {
+  let offset = 0;
+  const raw = [];
+  while (true) {
+    const res = await hsGet(`/crm/v3/owners?limit=100&after=${offset}`);
+    if (!res.results) break;
+    raw.push(...res.results);
+    if (!res.paging?.next?.after) break;
+    offset = res.paging.next.after;
+  }
+  owners = {};
+  let colorIdx = 0;
+  raw.forEach(o => {
+    if (!o.id) return;
+    owners[o.id] = {
+      name: `${o.firstName || ''} ${o.lastName || ''}`.trim() || o.email || `CSM ${o.id}`,
+      color: CSM_COLORS[colorIdx++ % CSM_COLORS.length]
+    };
+  });
+}
+
+async function loadAllCustomers() {
+  const props = ['name','city','address','zip','country','latitude','longitude',
+                 'hubspot_owner_id','phone','reseau','death_quantity','lifecyclestage'];
+  const all = [];
+  let after = 0;
+  let page = 0;
+
+  while (true) {
+    page++;
+    setLoadingProg(`Page ${page} — ${all.length} clients chargés…`);
+
+    const body = {
+      filterGroups: [{
+        filters: [{
+          propertyName: 'lifecyclestage',
+          operator: 'EQ',
+          value: 'customer'
+        }]
+      }],
+      properties: props,
+      limit: 100,
+      after: after
+    };
+
+    const res = await hsPost('/crm/v3/objects/companies/search', body);
+    if (!res.results || res.results.length === 0) break;
+    all.push(...res.results);
+    if (!res.paging?.next?.after) break;
+    after = res.paging.next.after;
+    if (page > 50) break; // safety cap (5000 companies)
+  }
+  return all;
+}
+
+async function geocodeAll(companies) {
+  const result = [];
+  let done = 0;
+
+  for (const co of companies) {
+    const p = co.properties;
+    let lat = parseFloat(p.latitude);
+    let lng = parseFloat(p.longitude);
+
+    // If no stored coords, geocode from address
+    if (!lat || !lng) {
+      const addr = [p.address, p.zip, p.city, p.country].filter(Boolean).join(', ');
+      if (addr.trim()) {
+        try {
+          const coords = await geocodeAddress(addr);
+          if (coords) { lat = coords.lat; lng = coords.lng; }
+        } catch(_) {}
+      }
+    }
+
+    done++;
+    if (done % 20 === 0) setLoadingProg(`Géocodage ${done}/${companies.length}…`);
+
+    if (!lat || !lng) continue; // skip if still no coords
+
+    const ownerId = p.hubspot_owner_id || '';
+    result.push({
+      id: co.id,
+      name: p.name || 'Sans nom',
+      city: p.city || '',
+      address: p.address || '',
+      zip: p.zip || '',
+      country: p.country || '',
+      lat, lng,
+      ownerId,
+      phone: p.phone || '',
+      reseau: p.reseau || '',
+      death_quantity: p.death_quantity || '',
+      hsUrl: `https://app.hubspot.com/contacts/7141150/company/${co.id}`
+    });
+  }
+  return result;
+}
+
+async function geocodeAddress(address) {
+  const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+  const r = await fetch(url, { headers: { 'Accept-Language': 'fr' } });
+  const data = await r.json();
+  if (data && data[0]) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+  return null;
+}
+
+// ═══════════════════════════════════════════════
+//  HS API HELPERS
+// ═══════════════════════════════════════════════
+const PROXY = 'https://corsproxy.io/?url=';
+
+async function hsGet(path) {
+  const url = PROXY + encodeURIComponent(`https://api.hubapi.com${path}`);
+  const r = await fetch(url, {
+    headers: { Authorization: `Bearer ${HS_TOKEN}`, 'Content-Type': 'application/json' }
+  });
+  if (!r.ok) throw new Error(`HubSpot ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+async function hsPost(path, body) {
+  const url = PROXY + encodeURIComponent(`https://api.hubapi.com${path}`);
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${HS_TOKEN}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body)
+  });
+  if (!r.ok) throw new Error(`HubSpot ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER
+// ═══════════════════════════════════════════════
+function renderAll() {
+  buildCsmIndex();
+  renderCsmList();
+  renderMarkers();
+  renderClientList();
+  updateStats();
+}
+
+function buildCsmIndex() {
+  // Init visibility for new CSMs
+  allClients.forEach(c => {
+    if (!(c.ownerId in csmVisible)) csmVisible[c.ownerId] = true;
+  });
+}
+
+function renderCsmList() {
+  const counts = {};
+  allClients.forEach(c => { counts[c.ownerId] = (counts[c.ownerId] || 0) + 1; });
+
+  const sortedOwners = Object.entries(counts)
+    .sort((a,b) => b[1]-a[1])
+    .map(([id]) => id);
+
+  const el = document.getElementById('csm-list');
+  el.innerHTML = '';
+
+  // Populate CSM route picker
+  const pick = document.getElementById('csm-route-pick');
+  pick.innerHTML = '<option value="">— Choisir un CSM —</option>';
+
+  sortedOwners.forEach(ownerId => {
+    const owner = owners[ownerId] || { name: 'Non assigné', color: '#666' };
+    const count = counts[ownerId] || 0;
+    const vis = csmVisible[ownerId] !== false;
+
+    const row = document.createElement('div');
+    row.className = 'csm-row' + (vis ? '' : ' off');
+    row.onclick = () => toggleCsm(ownerId, row);
+    row.innerHTML = `
+      <div class="csm-color" style="background:${owner.color}"></div>
+      <div class="csm-n">${owner.name}</div>
+      <div class="csm-c">${count}</div>
+      <svg class="csm-eye" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+      </svg>`;
+    el.appendChild(row);
+
+    // Route picker option
+    const opt = document.createElement('option');
+    opt.value = ownerId;
+    opt.textContent = `${owner.name} (${count} clients)`;
+    pick.appendChild(opt);
+  });
+}
+
+function renderMarkers() {
+  // Clear existing
+  Object.values(markers).forEach(m => map.removeLayer(m));
+  markers = {};
+
+  const filtered = getFilteredClients();
+
+  filtered.forEach(client => {
+    const owner = owners[client.ownerId] || { color: '#666', name: 'Non assigné' };
+    const color = owner.color;
+
+    const icon = L.divIcon({
+      className: '',
+      html: `<div style="
+        width:14px;height:14px;
+        background:${color};
+        border:2px solid rgba(255,255,255,0.85);
+        border-radius:50%;
+        box-shadow:0 2px 8px rgba(0,0,0,.5);
+        cursor:pointer;
+        transition:transform .15s;
+      " onmouseover="this.style.transform='scale(1.5)'" onmouseout="this.style.transform='scale(1)'"></div>`,
+      iconSize: [14, 14],
+      iconAnchor: [7, 7]
+    });
+
+    const marker = L.marker([client.lat, client.lng], { icon })
+      .addTo(map)
+      .bindPopup(buildPopup(client, owner), { maxWidth: 300 });
+
+    markers[client.id] = marker;
+  });
+
+  updateStats();
+}
+
+function buildPopup(client, owner) {
+  const deathStr = client.death_quantity
+    ? `<strong>${Number(client.death_quantity).toLocaleString('fr-FR')}</strong> décès/an`
+    : '<span style="color:var(--text3)">—</span>';
+
+  const phoneStr = client.phone
+    ? `<strong>${client.phone}</strong>`
+    : '<span style="color:var(--text3)">—</span>';
+
+  const reseauStr = client.reseau
+    ? `<strong>${client.reseau}</strong>`
+    : '<span style="color:var(--text3)">—</span>';
+
+  const addrStr = [client.address, client.zip, client.city].filter(Boolean).join(', ');
+
+  return `<div class="popup-inner">
+    <div class="pop-name">${client.name}</div>
+    <div class="pop-badge" style="background:${owner.color}22;color:${owner.color}">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
+      ${owner.name}
+    </div>
+    <div class="pop-rows">
+      ${addrStr ? `<div class="pop-row">
+        <svg class="pop-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <div class="pop-row-val">${addrStr}</div>
+      </div>` : ''}
+      <div class="pop-row">
+        <svg class="pop-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 12a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.62 1.27h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 8.96a16 16 0 0 0 6.29 6.29l.96-.96a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 21.73 16.92z"/></svg>
+        <div class="pop-row-val">${phoneStr}</div>
+      </div>
+      <div class="pop-row">
+        <svg class="pop-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <div class="pop-row-val">${reseauStr}</div>
+      </div>
+      <div class="pop-row">
+        <svg class="pop-row-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+        <div class="pop-row-val">${deathStr}</div>
+      </div>
+    </div>
+    <div class="pop-actions">
+      <button class="pop-btn pop-btn-hs" onclick="window.open('${client.hsUrl}','_blank')">Voir HubSpot ↗</button>
+      <button class="pop-btn pop-btn-route" onclick="addToRoute('${client.id}')">+ Tournée</button>
+    </div>
+  </div>`;
+}
+
+function renderClientList() {
+  const filtered = getFilteredClients();
+  const el = document.getElementById('client-list');
+  el.innerHTML = '';
+  document.getElementById('cl-count').textContent = filtered.length;
+
+  filtered.forEach(client => {
+    const owner = owners[client.ownerId] || { color: '#666', name: '—' };
+    const row = document.createElement('div');
+    row.className = 'cl-row';
+    row.onclick = () => flyTo(client);
+    row.innerHTML = `
+      <div class="cl-dot" style="background:${owner.color}"></div>
+      <div class="cl-info">
+        <div class="cl-name">${client.name}</div>
+        <div class="cl-sub">${[client.city, client.country].filter(Boolean).join(', ') || '—'}</div>
+      </div>
+      <button class="cl-add" title="Ajouter à la tournée" onclick="event.stopPropagation();addToRoute('${client.id}')">+</button>`;
+    el.appendChild(row);
+  });
+}
+
+// ═══════════════════════════════════════════════
+//  FILTER & SEARCH
+// ═══════════════════════════════════════════════
+function getFilteredClients() {
+  const q = searchQ.toLowerCase();
+  return allClients.filter(c => {
+    const vis = csmVisible[c.ownerId] !== false;
+    if (!vis) return false;
+    if (q && !c.name.toLowerCase().includes(q) &&
+        !c.city.toLowerCase().includes(q) &&
+        !(c.reseau||'').toLowerCase().includes(q)) return false;
+    return true;
+  });
+}
+
+function filterClients() {
+  searchQ = document.getElementById('search-inp').value;
+  renderMarkers();
+  renderClientList();
+}
+
+function toggleCsm(ownerId, row) {
+  csmVisible[ownerId] = !csmVisible[ownerId];
+  row.classList.toggle('off', !csmVisible[ownerId]);
+  renderMarkers();
+  renderClientList();
+  updateStats();
+}
+
+function toggleAllCsms() {
+  const anyOff = Object.values(csmVisible).some(v => !v);
+  Object.keys(csmVisible).forEach(k => csmVisible[k] = anyOff ? true : !csmVisible[k]);
+  renderCsmList();
+  renderMarkers();
+  renderClientList();
+  updateStats();
+}
+
+function updateStats() {
+  const vis = getFilteredClients().length;
+  document.getElementById('st-total').textContent = allClients.length;
+  document.getElementById('st-csms').textContent = Object.keys(owners).length;
+  document.getElementById('st-vis').textContent = vis;
+  document.getElementById('st-route').textContent = routeStops.length;
+}
+
+function flyTo(client) {
+  map.flyTo([client.lat, client.lng], 14, { duration: 0.8 });
+  markers[client.id]?.openPopup();
+}
+
+// ═══════════════════════════════════════════════
+//  ROUTE PLANNER
+// ═══════════════════════════════════════════════
+function setMode(mode) {
+  routeMode = mode;
+  document.getElementById('tab-sel').classList.toggle('on', mode === 'select');
+  document.getElementById('tab-csm').classList.toggle('on', mode === 'csm');
+  document.getElementById('csm-route-sel').style.display = mode === 'csm' ? 'block' : 'none';
+}
+
+function addToRoute(clientId) {
+  const client = allClients.find(c => c.id === clientId);
+  if (!client) return;
+  if (routeStops.find(s => s.id === clientId)) {
+    showToast('Client déjà dans la tournée'); return;
+  }
+  routeStops.push(client);
+  map.closePopup();
+  renderStops();
+  updateStats();
+  showToast(`${client.name} ajouté à la tournée`);
+}
+
+function removeStop(idx) {
+  routeStops.splice(idx, 1);
+  renderStops();
+  updateStats();
+  if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+  document.getElementById('route-bar').classList.remove('vis');
+}
+
+function renderStops() {
+  const el = document.getElementById('stops-list');
+  const btn = document.getElementById('btn-calc');
+  if (routeStops.length === 0) {
+    el.innerHTML = '<div class="route-empty">Cliquez sur un client sur la carte<br>pour l\'ajouter à la tournée</div>';
+    btn.disabled = true;
+    return;
+  }
+  btn.disabled = routeStops.length < 2;
+  el.innerHTML = routeStops.map((s, i) => `
+    <div class="stop-row">
+      <div class="stop-idx">${i + 1}</div>
+      <div class="stop-name">${s.name}</div>
+      <button class="stop-rm" onclick="removeStop(${i})">×</button>
+    </div>`).join('');
+}
+
+function clearRoute() {
+  routeStops = [];
+  renderStops();
+  updateStats();
+  if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+  document.getElementById('route-bar').classList.remove('vis');
+}
+
+function loadCsmRoute() {
+  const ownerId = document.getElementById('csm-route-pick').value;
+  if (!ownerId) { showToast('Sélectionnez un CSM'); return; }
+  routeStops = allClients.filter(c => c.ownerId === ownerId).slice(0, 20);
+  renderStops();
+  updateStats();
+  if (routeStops.length) {
+    const bounds = L.latLngBounds(routeStops.map(s => [s.lat, s.lng]));
+    map.fitBounds(bounds, { padding: [40, 40] });
+    showToast(`${routeStops.length} clients de ${owners[ownerId]?.name || '?'} chargés`);
+  }
+}
+
+async function calculateRoute() {
+  if (routeStops.length < 2) return;
+  showToast('Calcul de l\'itinéraire…');
+
+  // Optimize stop order using nearest-neighbor heuristic
+  const optimized = nearestNeighbor(routeStops);
+
+  // Fetch route from OSRM
+  const coords = optimized.map(s => `${s.lng},${s.lat}`).join(';');
+  try {
+    const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    if (data.code !== 'Ok') throw new Error('Route non trouvée');
+
+    const route = data.routes[0];
+    const distKm = (route.distance / 1000).toFixed(0);
+    const durMin = Math.round(route.duration / 60);
+    const durStr = durMin >= 60
+      ? `${Math.floor(durMin/60)}h${String(durMin%60).padStart(2,'0')}`
+      : `${durMin} min`;
+
+    // Draw route on map
+    if (routeLayer) map.removeLayer(routeLayer);
+    routeLayer = L.geoJSON(route.geometry, {
+      style: { color: '#4493f8', weight: 3, opacity: 0.8 }
+    }).addTo(map);
+    map.fitBounds(routeLayer.getBounds(), { padding: [60, 60] });
+
+    // Update route bar
+    document.getElementById('rb-dist').textContent = `${distKm} km`;
+    document.getElementById('rb-dur').textContent = durStr;
+    document.getElementById('rb-stops').textContent = `${optimized.length} arrêts`;
+
+    const stepsEl = document.getElementById('rb-steps');
+    stepsEl.innerHTML = optimized.map((s, i) => {
+      const owner = owners[s.ownerId] || { color: '#666' };
+      return `<div class="rb-step">
+        <div class="rb-step-dot" style="background:${owner.color}">${i+1}</div>
+        <div class="rb-step-name">${s.name}</div>
+        ${i < optimized.length-1 ? '<div class="rb-arrow">›</div>' : ''}
+      </div>`;
+    }).join('');
+
+    document.getElementById('route-bar').classList.add('vis');
+    routeStops = optimized;
+    renderStops();
+  } catch(e) {
+    showToast('Erreur itinéraire : ' + e.message);
+  }
+}
+
+function nearestNeighbor(stops) {
+  if (stops.length <= 2) return stops;
+  const visited = new Set();
+  const result = [stops[0]];
+  visited.add(0);
+  while (result.length < stops.length) {
+    const last = result[result.length - 1];
+    let bestIdx = -1, bestDist = Infinity;
+    stops.forEach((s, i) => {
+      if (visited.has(i)) return;
+      const d = Math.pow(s.lat - last.lat, 2) + Math.pow(s.lng - last.lng, 2);
+      if (d < bestDist) { bestDist = d; bestIdx = i; }
+    });
+    result.push(stops[bestIdx]);
+    visited.add(bestIdx);
+  }
+  return result;
+}
+
+function closeRouteBar() {
+  document.getElementById('route-bar').classList.remove('vis');
+  if (routeLayer) { map.removeLayer(routeLayer); routeLayer = null; }
+}
+
+function openInGoogleMaps() {
+  if (routeStops.length < 2) return;
+  const origin = `${routeStops[0].lat},${routeStops[0].lng}`;
+  const dest = `${routeStops[routeStops.length-1].lat},${routeStops[routeStops.length-1].lng}`;
+  const waypts = routeStops.slice(1,-1).map(s => `${s.lat},${s.lng}`).join('|');
+  const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}${waypts ? '&waypoints='+waypts : ''}&travelmode=driving`;
+  window.open(url, '_blank');
+}
+
+// ═══════════════════════════════════════════════
+//  DEMO DATA
+// ═══════════════════════════════════════════════
+function useDemoData() {
+  closeCfg();
+  showLoading('Chargement des données démo…');
+
+  const demoOwners = [
+    { id: 'csm1', name: 'Sophie Martin', color: '#4493f8' },
+    { id: 'csm2', name: 'Thomas Dubois', color: '#3fb950' },
+    { id: 'csm3', name: 'Laura Bernard', color: '#e3b341' },
+    { id: 'csm4', name: 'Marc Leroy', color: '#f85149' },
+  ];
+  demoOwners.forEach(o => { owners[o.id] = { name: o.name, color: o.color }; });
+
+  const cities = [
+    { city:'Lyon', lat:45.75, lng:4.85, country:'France' },
+    { city:'Paris', lat:48.85, lng:2.35, country:'France' },
+    { city:'Marseille', lat:43.30, lng:5.37, country:'France' },
+    { city:'Bordeaux', lat:44.84, lng:-0.58, country:'France' },
+    { city:'Toulouse', lat:43.60, lng:1.44, country:'France' },
+    { city:'Nantes', lat:47.22, lng:-1.55, country:'France' },
+    { city:'Strasbourg', lat:48.57, lng:7.75, country:'France' },
+    { city:'Lille', lat:50.63, lng:3.07, country:'France' },
+    { city:'Grenoble', lat:45.19, lng:5.72, country:'France' },
+    { city:'Rennes', lat:48.11, lng:-1.68, country:'France' },
+    { city:'Montpellier', lat:43.61, lng:3.88, country:'France' },
+    { city:'Nice', lat:43.71, lng:7.26, country:'France' },
+    { city:'Bruxelles', lat:50.85, lng:4.35, country:'Belgique' },
+    { city:'Liège', lat:50.63, lng:5.57, country:'Belgique' },
+    { city:'Gand', lat:51.05, lng:3.72, country:'Belgique' },
+  ];
+
+  const reseaux = ['Funecap','OGF','Roc-Eclebert','PFG','Indépendant','Funéraires du Nord'];
+
+  allClients = [];
+  let id = 1;
+  cities.forEach((c, ci) => {
+    const count = 3 + Math.floor(Math.random() * 5);
+    for (let i = 0; i < count; i++) {
+      const owner = demoOwners[Math.floor(Math.random() * demoOwners.length)];
+      allClients.push({
+        id: String(id++),
+        name: `Pompes Funèbres ${c.city} ${i+1}`,
+        city: c.city,
+        address: `${Math.floor(Math.random()*100)+1} rue des Lilas`,
+        zip: `${Math.floor(Math.random()*90000)+10000}`,
+        country: c.country,
+        lat: c.lat + (Math.random()-0.5)*0.2,
+        lng: c.lng + (Math.random()-0.5)*0.2,
+        ownerId: owner.id,
+        phone: `+33 ${Math.floor(Math.random()*900000000+100000000)}`,
+        reseau: reseaux[Math.floor(Math.random()*reseaux.length)],
+        death_quantity: String(Math.floor(Math.random()*800)+100),
+        hsUrl: '#'
+      });
+    }
+  });
+
+  renderAll();
+  setSyncState('ok', `${allClients.length} clients démo`);
+  hideLoading();
+  showToast('Mode démo — données fictives');
+}
+
+// ═══════════════════════════════════════════════
+//  UI HELPERS
+// ═══════════════════════════════════════════════
+function showLoading(txt) {
+  document.getElementById('loading').style.display = 'flex';
+  setLoadingText(txt);
+  setLoadingProg('');
+}
+function hideLoading() {
+  document.getElementById('loading').style.display = 'none';
+}
+function setLoadingText(t) { document.getElementById('ld-text').textContent = t; }
+function setLoadingProg(t) { document.getElementById('ld-prog').textContent = t; }
+
+function setSyncState(state, label) {
+  const dot = document.getElementById('sync-dot');
+  dot.className = 'sync-dot' + (state === 'loading' ? ' loading' : state === 'error' ? ' error' : '');
+  document.getElementById('sync-label').textContent = label;
+}
+
+let _toast;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(_toast);
+  _toast = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+function refreshAll() {
+  if (!HS_TOKEN) { openCfg(); return; }
+  allClients = [];
+  Object.keys(markers).forEach(k => map.removeLayer(markers[k]));
+  markers = {};
+  loadData();
+}
+</script>
+</body>
+</html>
