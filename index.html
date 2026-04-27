@@ -537,21 +537,15 @@ async function geocodeAddress(address) {
 // ═══════════════════════════════════════════════
 //  HS API HELPERS
 // ═══════════════════════════════════════════════
-const PROXY = 'https://corsproxy.io/?url=';
-
 async function hsGet(path) {
-  const url = PROXY + encodeURIComponent(`https://api.hubapi.com${path}`);
-  const r = await fetch(url, {
-    headers: { Authorization: `Bearer ${HS_TOKEN}`, 'Content-Type': 'application/json' }
-  });
+  const r = await fetch('/hs' + path);
   if (!r.ok) throw new Error(`HubSpot ${r.status}: ${await r.text()}`);
   return r.json();
 }
 async function hsPost(path, body) {
-  const url = PROXY + encodeURIComponent(`https://api.hubapi.com${path}`);
-  const r = await fetch(url, {
+  const r = await fetch('/hs' + path, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${HS_TOKEN}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body)
   });
   if (!r.ok) throw new Error(`HubSpot ${r.status}: ${await r.text()}`);
