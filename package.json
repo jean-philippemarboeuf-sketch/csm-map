@@ -1,0 +1,12 @@
+{
+  "name": "csm-map",
+  "version": "1.0.0",
+  "description": "CSM Map - Carte clients HubSpot",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
