@@ -428,10 +428,11 @@ async function loadData() {
 }
 
 async function loadOwners() {
-  let offset = 0;
+  let offset = '';
   const raw = [];
   while (true) {
-    const res = await hsGet(`/crm/v3/owners?limit=100&after=${offset}`);
+    const url = offset ? `/crm/v3/owners?limit=100&after=${encodeURIComponent(offset)}` : `/crm/v3/owners?limit=100`;
+    const res = await hsGet(url);
     if (!res.results) break;
     raw.push(...res.results);
     if (!res.paging?.next?.after) break;
@@ -452,7 +453,7 @@ async function loadAllCustomers() {
   const props = ['name','city','address','zip','country','latitude','longitude',
                  'hubspot_owner_id','phone','reseau','death_quantity','lifecyclestage'];
   const all = [];
-  let after = 0;
+  let after = undefined;
   let page = 0;
 
   while (true) {
@@ -468,9 +469,9 @@ async function loadAllCustomers() {
         }]
       }],
       properties: props,
-      limit: 100,
-      after: after
+      limit: 100
     };
+    if (after) body.after = after;
 
     const res = await hsPost('/crm/v3/objects/companies/search', body);
     if (!res.results || res.results.length === 0) break;
