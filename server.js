@@ -32,10 +32,10 @@ function saveDataCache(data) {
   try { fs.writeFileSync(DATA_FILE, JSON.stringify({ timestamp: Date.now(), data })); } catch {}
 }
 
-// Geocode via Nominatim
-function geocode(address) {
+// Geocode via Nominatim with fallback strategies
+function nominatimQuery(q) {
   return new Promise((resolve) => {
-    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(address)}&limit=1`;
+    const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(q)}&limit=1&countrycodes=fr,be,ch,lu`;
     const req = https.get(url, { headers: { 'User-Agent': 'CSMMap/1.0' } }, (res) => {
       let body = '';
       res.on('data', c => body += c);
@@ -48,8 +48,48 @@ function geocode(address) {
       });
     });
     req.on('error', () => resolve(null));
-    req.setTimeout(5000, () => { req.destroy(); resolve(null); });
+    req.setTimeout(8000, () => { req.destroy(); resolve(null); });
   });
+}
+
+async function geocode(rawAddress, rawZip, rawCity, rawCountry) {
+  // Clean up messy data
+  let city = (rawCity || '').replace(/^\d{5}\s*/, '').trim(); // remove zip from city
+  let zip = (rawZip || '').replace(/\D/g, '').substring(0, 5); // keep only digits
+  let address = (rawAddress || '').trim();
+  let country = (rawCountry || 'France').trim();
+  
+  // If address is just a zip code, clear it
+  if (/^\d{4,5}$/.test(address)) address = '';
+
+  // Strategy 1: full address
+  if (address && zip && city) {
+    const r = await nominatimQuery(`${address}, ${zip} ${city}, ${country}`);
+    if (r) return r;
+    await new Promise(res => setTimeout(res, 300));
+  }
+
+  // Strategy 2: zip + city
+  if (zip && city) {
+    const r = await nominatimQuery(`${zip} ${city}, ${country}`);
+    if (r) return r;
+    await new Promise(res => setTimeout(res, 300));
+  }
+
+  // Strategy 3: city only
+  if (city) {
+    const r = await nominatimQuery(`${city}, ${country}`);
+    if (r) return r;
+    await new Promise(res => setTimeout(res, 300));
+  }
+
+  // Strategy 4: zip only (get city center)
+  if (zip && zip.length >= 4) {
+    const r = await nominatimQuery(`${zip}, ${country}`);
+    if (r) return r;
+  }
+
+  return null;
 }
 
 // Fetch all HubSpot customers with geocoding (server-side)
@@ -110,8 +150,8 @@ async function fetchAllClients() {
     let lng = parseFloat(p.longitude);
 
     if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
-      const addr = [p.address, p.zip, p.city, p.country].filter(Boolean).join(', ').trim();
-      if (addr) {
+      const hasLocation = p.address || p.zip || p.city;
+      if (hasLocation) {
         if (geoCache[addr]) {
           lat = geoCache[addr].lat;
           lng = geoCache[addr].lng;
