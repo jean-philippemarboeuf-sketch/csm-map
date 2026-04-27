@@ -404,18 +404,26 @@ async function loadData() {
   showLoading('Chargement des clients…');
   setSyncState('loading', 'Chargement…');
   try {
-    // 1. Load owners
-    setLoadingText('Récupération des CSMs…');
-    await loadOwners();
+    setLoadingText('Récupération des données…');
+    setLoadingProg('Première ouverture : géocodage en cours côté serveur (2-3 min), ensuite instantané');
+    
+    const r = await fetch('/api/clients');
+    if (!r.ok) throw new Error(`Erreur serveur ${r.status}`);
+    allClients = await r.json();
+    
+    // Build owners from client data
+    allClients.forEach(c => {
+      if (c.ownerId && !owners[c.ownerId]) {
+        owners[c.ownerId] = { name: c.ownerName || 'Non assigné', color: '' };
+      }
+    });
+    
+    // Assign colors to owners
+    const CSM_COLORS = ['#4493f8','#3fb950','#e3b341','#f85149','#bc8cff','#79c0ff','#56d364','#ff7b72','#d2a8ff','#ffa657','#39d353','#58a6ff'];
+    Object.keys(owners).forEach((id, i) => {
+      owners[id].color = CSM_COLORS[i % CSM_COLORS.length];
+    });
 
-    // 2. Load companies (customers only)
-    setLoadingText('Chargement des clients actifs…');
-    const companies = await loadAllCustomers();
-
-    setLoadingText(`Géocodage de ${companies.length} adresses…`);
-    const geocoded = await geocodeAll(companies);
-
-    allClients = geocoded;
     renderAll();
     setSyncState('ok', `${allClients.length} clients · ${new Date().toLocaleTimeString('fr-FR', {hour:'2-digit',minute:'2-digit'})}`);
     hideLoading();
@@ -1015,11 +1023,12 @@ function showToast(msg) {
   _toast = setTimeout(() => el.classList.remove('show'), 2800);
 }
 
-function refreshAll() {
-  if (!HS_TOKEN) { openCfg(); return; }
+async function refreshAll() {
   allClients = [];
   Object.keys(markers).forEach(k => map.removeLayer(markers[k]));
   markers = {};
+  // Invalidate server cache
+  try { await fetch('/api/refresh'); } catch {}
   loadData();
 }
 </script>
