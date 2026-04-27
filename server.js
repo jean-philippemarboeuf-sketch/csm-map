@@ -152,14 +152,15 @@ async function fetchAllClients() {
     if (!lat || !lng || isNaN(lat) || isNaN(lng)) {
       const hasLocation = p.address || p.zip || p.city;
       if (hasLocation) {
-        if (geoCache[addr]) {
-          lat = geoCache[addr].lat;
-          lng = geoCache[addr].lng;
+        const cacheKey = [p.address, p.zip, p.city, p.country].join("|");
+        if (geoCache[cacheKey]) {
+          lat = geoCache[cacheKey].lat;
+          lng = geoCache[cacheKey].lng;
         } else {
-          await new Promise(r => setTimeout(r, 200)); // rate limit
-          const coords = await geocode(addr);
+          await new Promise(r => setTimeout(r, 250)); // rate limit Nominatim
+          const coords = await geocode(p.address, p.zip, p.city, p.country);
           if (coords) {
-            geoCache[addr] = coords;
+            geoCache[cacheKey] = coords;
             lat = coords.lat;
             lng = coords.lng;
           }
